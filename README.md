@@ -22,7 +22,7 @@ Le socle initial comprend :
 - les règles métier de vente testées: saisie réservée au gestionnaire, fusion des lignes et refus sans écriture partielle;
 - un environnement Python local associé au workspace VS Code.
 
-Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
+Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent créer, modifier, suspendre et réactiver les boutiques, puis enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
 
 ## Structure
 

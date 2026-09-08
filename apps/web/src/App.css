@@ -58,11 +58,15 @@
 .panel-heading { min-height: 68px; padding: 0 20px; border-bottom: 1px solid #edf0ef; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .panel-heading h2 { margin: 0 0 4px; color: #203c36; font-size: 13px; letter-spacing: 0; }
 .panel-heading p { margin: 0; color: #91a09c; font-size: 9px; }
+.panel-heading-actions { display: flex; align-items: center; gap: 8px; }
 .panel-count { min-width: 26px; height: 24px; padding: 0 7px; border-radius: 12px; background: #e8f4ef; color: #237d62; display: grid; place-items: center; font-size: 9px; font-weight: 800; }
 .panel-count.danger { background: #fae8e6; color: #b34840; }
+.panel-command { height: 32px; padding: 0 10px; border: 1px solid #dce5e1; border-radius: 5px; background: #fff; color: #267b62; display: flex; align-items: center; gap: 6px; font: inherit; font-size: 9px; font-weight: 750; cursor: pointer; }
 .shop-list { padding: 6px 20px; }
-.shop-row { min-height: 68px; border-bottom: 1px solid #f0f2f1; display: grid; grid-template-columns: 31px minmax(120px, 1fr) minmax(90px, .85fr) 70px 74px; align-items: center; gap: 12px; }
+.shop-row { min-height: 68px; border-bottom: 1px solid #f0f2f1; display: grid; grid-template-columns: 31px minmax(120px, 1fr) minmax(90px, .85fr) 70px 74px auto; align-items: center; gap: 12px; }
 .shop-row:last-child { border-bottom: 0; }
+.shop-row.suspended { background: #fafbfb; }
+.shop-row.suspended .shop-info, .shop-row.suspended .health-cell, .shop-row.suspended .shop-stock { opacity: .58; }
 .shop-rank { width: 25px; height: 25px; border-radius: 5px; display: grid; place-items: center; background: #e4f3ee; color: #248168; font-size: 9px; font-weight: 800; }
 .shop-rank.tone-1 { background: #e6f0f4; color: #39738d; }
 .shop-rank.tone-2 { background: #f9efd9; color: #9b6d1d; }
@@ -78,6 +82,12 @@
 .shop-stock span { margin-top: 2px; color: #9aa6a2; font-size: 8px; }
 .alert-chip { justify-self: end; padding: 4px 7px; border-radius: 4px; color: #9a6a1e; background: #fdf1d8; font-size: 8px; font-weight: 750; white-space: nowrap; }
 .alert-chip.clear { color: #237b60; background: #e5f5ef; }
+.shop-actions { display: flex; align-items: center; gap: 3px; }
+.shop-actions button { width: 29px; height: 29px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #71827d; display: grid; place-items: center; cursor: pointer; }
+.shop-actions button:hover { color: #1d765e; background: #edf6f2; }
+.shop-actions button.danger:hover { color: #b34840; background: #fae8e6; }
+.shop-actions button.activate { color: #237b60; }
+.shop-actions button:disabled { cursor: wait; opacity: .4; }
 .alert-list { padding: 5px 18px; }
 .alert-row { min-height: 65px; border-bottom: 1px solid #f0f2f1; display: grid; grid-template-columns: 33px 1fr auto; align-items: center; gap: 10px; }
 .alert-row:last-child { border: 0; }
@@ -135,13 +145,13 @@ td small { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
 .boot-screen { min-height: 100vh; background: #102d2a; color: #69d4a8; display: flex; align-items: center; justify-content: center; gap: 15px; }
 
 .dialog-backdrop { position: fixed; inset: 0; z-index: 50; padding: 24px; background: rgba(9, 31, 27, .58); display: grid; place-items: center; backdrop-filter: blur(4px); }
-.movement-dialog, .sale-dialog { width: min(560px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border-radius: 7px; background: #fff; box-shadow: 0 24px 70px rgba(6, 29, 24, .26); }
+.movement-dialog, .sale-dialog, .store-dialog { width: min(560px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border-radius: 7px; background: #fff; box-shadow: 0 24px 70px rgba(6, 29, 24, .26); }
 .sale-dialog { width: min(720px, 100%); }
 .dialog-heading { padding: 22px 24px; border-bottom: 1px solid #e8eeeb; display: flex; align-items: center; justify-content: space-between; }
 .dialog-heading .eyebrow { margin: 0 0 4px !important; }
-.movement-dialog form, .sale-dialog form { padding: 22px 24px 24px; }
-.movement-dialog select, .movement-dialog input, .sale-dialog select, .sale-dialog input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #dce4e1; border-radius: 6px; outline: 0; background: #fff; color: #334a44; font: inherit; font-size: 11px; }
-.movement-dialog select:focus, .movement-dialog input:focus, .sale-dialog select:focus, .sale-dialog input:focus { border-color: #279071; box-shadow: 0 0 0 3px rgba(39, 144, 113, .1); }
+.movement-dialog form, .sale-dialog form, .store-dialog form { padding: 22px 24px 24px; }
+.movement-dialog select, .movement-dialog input, .sale-dialog select, .sale-dialog input, .store-dialog > form > .field-label > input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #dce4e1; border-radius: 6px; outline: 0; background: #fff; color: #334a44; font: inherit; font-size: 11px; }
+.movement-dialog select:focus, .movement-dialog input:focus, .sale-dialog select:focus, .sale-dialog input:focus, .store-dialog input:focus { border-color: #279071; box-shadow: 0 0 0 3px rgba(39, 144, 113, .1); }
 .movement-kind { padding: 0; margin: 0 0 17px; border: 0; }
 .movement-kind legend { margin-bottom: 7px; color: #405550; font-size: 10px; font-weight: 750; }
 .movement-kind > label { min-height: 42px; margin-bottom: 6px; padding: 0 11px; border: 1px solid #e0e7e4; border-radius: 6px; color: #677974; display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 10px; font-weight: 650; }
@@ -198,6 +208,7 @@ td small { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
   .metrics-grid { grid-template-columns: 1fr; }
   .shop-row { grid-template-columns: 31px 1fr auto; padding: 8px 0; }
   .health-cell, .shop-stock { display: none; }
+  .shop-actions { grid-column: 2 / -1; justify-content: flex-end; }
   .login-page { display: block; background: #f7f9f8; }
   .login-intro { min-height: 235px; padding: 26px 24px; }
   .login-statement { margin: auto 0 0; }
@@ -219,5 +230,5 @@ td small { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
   .heading-actions { width: 100%; }
   .heading-actions .primary-button { flex: 1; }
   .dialog-backdrop { padding: 10px; }
-  .movement-dialog, .sale-dialog { max-height: calc(100vh - 20px); }
+  .movement-dialog, .sale-dialog, .store-dialog { max-height: calc(100vh - 20px); }
 }

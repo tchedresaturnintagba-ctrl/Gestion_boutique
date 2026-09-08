@@ -131,6 +131,12 @@ export interface LoginCredentials {
   password: string
 }
 
+export interface StoreInput {
+  name: string
+  code: string
+  address: string | null
+}
+
 export interface StockMovementInput {
   product_id: string
   movement_type: ManualStockMovementType
@@ -269,6 +275,20 @@ export const api = {
 
   me: () => request<CurrentUser>('/auth/me'),
   stores: () => allPages<Store>('/stores'),
+  createStore: (input: StoreInput) =>
+    request<Store>('/stores', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateStore: (storeId: string, input: StoreInput) =>
+    request<Store>(`/stores/${storeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  setStoreActive: (storeId: string, isActive: boolean) =>
+    request<void>(`/stores/${storeId}/${isActive ? 'activate' : 'suspend'}`, {
+      method: 'POST',
+    }),
   products: () => allPages<Product>('/catalog/products'),
   storeProducts: (storeId: string) =>
     allPages<StoreProduct>(`/catalog/stores/${storeId}/products`),

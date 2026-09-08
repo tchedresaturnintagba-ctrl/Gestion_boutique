@@ -10,7 +10,10 @@ import {
   LogOut,
   Menu,
   Package,
+  Pencil,
   Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   ReceiptText,
   Search,
@@ -21,6 +24,7 @@ import {
 import { LoginScreen } from './components/LoginScreen'
 import { MovementDialog } from './components/MovementDialog'
 import { SaleDialog } from './components/SaleDialog'
+import { StoreDialog } from './components/StoreDialog'
 import {
   ApiError,
   api,
@@ -35,6 +39,7 @@ import {
   type StockMovement,
   type StockMovementInput,
   type Store,
+  type StoreInput,
   type StoreProduct,
 } from './lib/api'
 import './App.css'
@@ -101,6 +106,8 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [movementOpen, setMovementOpen] = useState(false)
   const [saleOpen, setSaleOpen] = useState(false)
+  const [storeEditor, setStoreEditor] = useState<Store | null | undefined>(undefined)
+  const [statusStoreId, setStatusStoreId] = useState<string | null>(null)
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase('fr'))
 
   async function loadDashboard() {
@@ -178,6 +185,32 @@ function App() {
     window.setTimeout(() => setNotice(null), 4500)
   }
 
+  async function handleStore(input: StoreInput) {
+    if (storeEditor) await api.updateStore(storeEditor.id, input)
+    else await api.createStore(input)
+    setDashboard(await fetchDashboard())
+    setStoreEditor(undefined)
+    setNotice(storeEditor ? 'La boutique a été mise à jour.' : 'La boutique a été créée.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
+  async function handleStoreStatus(store: Store) {
+    if (store.is_active && !window.confirm(`Suspendre ${store.name} ?`)) return
+    setStatusStoreId(store.id)
+    setLoadError(null)
+    try {
+      await api.setStoreActive(store.id, !store.is_active)
+      setDashboard(await fetchDashboard())
+      if (store.id === selectedStoreId && store.is_active) setSelectedStoreId('all')
+      setNotice(store.is_active ? 'La boutique a été suspendue.' : 'La boutique a été réactivée.')
+      window.setTimeout(() => setNotice(null), 4500)
+    } catch (caughtError) {
+      setLoadError(caughtError instanceof Error ? caughtError.message : 'Changement de statut impossible')
+    } finally {
+      setStatusStoreId(null)
+    }
+  }
+
   if (authState === 'checking') {
     return <main className="boot-screen" aria-label="Chargement de KërManager"><span className="brand-symbol"><ShoppingBag size={22} /></span><LoaderCircle className="spin" size={22} /></main>
   }
@@ -202,8 +235,12 @@ function App() {
   const totalStock = scopedBalances.reduce((sum, balance) => sum + Number(balance.quantity), 0)
   const outOfStockCount = scopedAlerts.filter((alert) => alert.alert_type === 'out_of_stock').length
   const activeStoreCount = dashboard.stores.filter((store) => scopedStoreIds.has(store.id) && store.is_active).length
+  const hasActiveStores = dashboard.stores.some((store) => store.is_active)
   const totalRevenue = scopedSales.reduce((sum, sale) => sum + Number(sale.total_amount), 0)
-  const actionDefaultStore = selectedStoreId === 'all' ? dashboard.stores.find((store) => store.is_active)?.id ?? '' : selectedStoreId
+  const selectedStore = dashboard.stores.find((store) => store.id === selectedStoreId)
+  const actionDefaultStore = selectedStore?.is_active
+    ? selectedStore.id
+    : dashboard.stores.find((store) => store.is_active)?.id ?? ''
 
   return (
     <div className="app-shell">
@@ -247,8 +284,8 @@ function App() {
             <div><p className="eyebrow">SITUATION OPÉRATIONNELLE</p><h1>Bonjour {user.full_name.split(' ')[0]},</h1><p>Les niveaux de stock de vos boutiques sont à jour.</p></div>
             <div className="heading-actions">
               <button className="icon-button" type="button" onClick={() => void loadDashboard()} aria-label="Actualiser" title="Actualiser" disabled={loading}><RefreshCw className={loading ? 'spin' : ''} size={18} /></button>
-              {user.role === 'manager' && <button className="secondary-button action-button" type="button" onClick={() => setMovementOpen(true)} disabled={dashboard.stores.length === 0}><Boxes size={17} />Mouvement</button>}
-              {user.role === 'manager' && <button className="primary-button" type="button" onClick={() => setSaleOpen(true)} disabled={dashboard.stores.length === 0}><Plus size={18} />Nouvelle vente</button>}
+              {user.role === 'manager' && <button className="secondary-button action-button" type="button" onClick={() => setMovementOpen(true)} disabled={!hasActiveStores}><Boxes size={17} />Mouvement</button>}
+              {user.role === 'manager' && <button className="primary-button" type="button" onClick={() => setSaleOpen(true)} disabled={!hasActiveStores}><Plus size={18} />Nouvelle vente</button>}
             </div>
           </section>
 
@@ -261,14 +298,14 @@ function App() {
 
           <section className="dashboard-grid">
             <article className="panel shops-panel" id="shops">
-              <div className="panel-heading"><div><h2>État des boutiques</h2><p>Couverture du catalogue et santé du stock</p></div><span className="panel-count">{filteredStores.length}</span></div>
+              <div className="panel-heading"><div><h2>État des boutiques</h2><p>Couverture du catalogue et santé du stock</p></div><div className="panel-heading-actions"><span className="panel-count">{filteredStores.length}</span>{user.role === 'manager' && <button className="panel-command" type="button" onClick={() => setStoreEditor(null)}><Plus size={15} />Ajouter</button>}</div></div>
               {filteredStores.length === 0 ? <EmptyState>Aucune boutique ne correspond à cette vue.</EmptyState> : <div className="shop-list">{filteredStores.map((store, index) => {
                 const configurations = dashboard.configurations.filter((item) => item.store_id === store.id && item.is_active)
                 const balances = dashboard.balances.filter((item) => item.store_id === store.id)
                 const alerts = dashboard.alerts.filter((item) => item.store_id === store.id)
                 const healthy = balances.filter((balance) => Number(balance.quantity) > Number(configurationByKey.get(`${store.id}:${balance.product_id}`)?.low_stock_threshold ?? 0)).length
                 const health = configurations.length === 0 ? 0 : Math.round((healthy / configurations.length) * 100)
-                return <div className="shop-row" key={store.id}><span className={`shop-rank tone-${index % 3}`}>{String(index + 1).padStart(2, '0')}</span><div className="shop-info"><strong>{store.name}</strong><span>{store.code} · {configurations.length} produit{configurations.length > 1 ? 's' : ''}</span></div><div className="health-cell"><div className="bar-track"><span className={health < 50 ? 'danger' : health < 80 ? 'amber' : ''} style={{ width: `${health}%` }} /></div><span>{health}% sain</span></div><div className="shop-stock"><strong>{formatQuantity(balances.reduce((sum, item) => sum + Number(item.quantity), 0))}</strong><span>unités</span></div><span className={`alert-chip ${alerts.length === 0 ? 'clear' : ''}`}>{alerts.length === 0 ? 'Sain' : `${alerts.length} alerte${alerts.length > 1 ? 's' : ''}`}</span></div>
+                return <div className={`shop-row ${store.is_active ? '' : 'suspended'}`} key={store.id}><span className={`shop-rank tone-${index % 3}`}>{String(index + 1).padStart(2, '0')}</span><div className="shop-info"><strong>{store.name}</strong><span>{store.code} · {configurations.length} produit{configurations.length > 1 ? 's' : ''}</span></div><div className="health-cell"><div className="bar-track"><span className={health < 50 ? 'danger' : health < 80 ? 'amber' : ''} style={{ width: `${health}%` }} /></div><span>{health}% sain</span></div><div className="shop-stock"><strong>{formatQuantity(balances.reduce((sum, item) => sum + Number(item.quantity), 0))}</strong><span>unités</span></div><span className={`alert-chip ${store.is_active && alerts.length === 0 ? 'clear' : ''}`}>{store.is_active ? alerts.length === 0 ? 'Sain' : `${alerts.length} alerte${alerts.length > 1 ? 's' : ''}` : 'Suspendue'}</span>{user.role === 'manager' && <div className="shop-actions"><button type="button" onClick={() => setStoreEditor(store)} aria-label={`Modifier ${store.name}`} title="Modifier"><Pencil size={15} /></button><button type="button" className={store.is_active ? 'danger' : 'activate'} onClick={() => void handleStoreStatus(store)} disabled={statusStoreId === store.id} aria-label={`${store.is_active ? 'Suspendre' : 'Réactiver'} ${store.name}`} title={store.is_active ? 'Suspendre' : 'Réactiver'}>{store.is_active ? <PowerOff size={15} /> : <Power size={15} />}</button></div>}</div>
               })}</div>}
             </article>
 
@@ -306,6 +343,7 @@ function App() {
 
       {movementOpen && <MovementDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} defaultStoreId={actionDefaultStore} onClose={() => setMovementOpen(false)} onSubmit={handleMovement} />}
       {saleOpen && <SaleDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} balances={dashboard.balances} defaultStoreId={actionDefaultStore} onClose={() => setSaleOpen(false)} onSubmit={handleSale} />}
+      {storeEditor !== undefined && <StoreDialog store={storeEditor} onClose={() => setStoreEditor(undefined)} onSubmit={handleStore} />}
     </div>
   )
 }
