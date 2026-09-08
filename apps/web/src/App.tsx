@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useState } from 'react'
 import {
+  Banknote,
   Bell,
   Boxes,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   Package,
   Plus,
   RefreshCw,
+  ReceiptText,
   Search,
   ShoppingBag,
   Store as StoreIcon,
@@ -18,6 +20,7 @@ import {
 } from 'lucide-react'
 import { LoginScreen } from './components/LoginScreen'
 import { MovementDialog } from './components/MovementDialog'
+import { SaleDialog } from './components/SaleDialog'
 import {
   ApiError,
   api,
@@ -26,6 +29,8 @@ import {
   type CurrentUser,
   type InventoryBalance,
   type Product,
+  type Sale,
+  type SaleInput,
   type StockAlert,
   type StockMovement,
   type StockMovementInput,
@@ -41,18 +46,20 @@ interface DashboardData {
   balances: InventoryBalance[]
   movements: StockMovement[]
   alerts: StockAlert[]
+  sales: Sale[]
 }
 
 const emptyDashboard: DashboardData = {
-  stores: [], products: [], configurations: [], balances: [], movements: [], alerts: [],
+  stores: [], products: [], configurations: [], balances: [], movements: [], alerts: [], sales: [],
 }
 const numberFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 })
+const moneyFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 })
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 const longDateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
-const movementLabels = { entry: 'Entrée', adjustment_in: 'Ajustement +', adjustment_out: 'Ajustement −' }
+const movementLabels = { entry: 'Entrée', adjustment_in: 'Ajustement +', adjustment_out: 'Ajustement −', sale: 'Vente' }
 
 async function fetchDashboard(): Promise<DashboardData> {
-  const [storesResponse, productsResponse, alertsResponse] = await Promise.all([api.stores(), api.products(), api.alerts()])
+  const [storesResponse, productsResponse, alertsResponse, salesResponse] = await Promise.all([api.stores(), api.products(), api.alerts(), api.sales()])
   const slices = await Promise.all(storesResponse.items.map(async (store) => {
     const [configurations, balances, movements] = await Promise.all([api.storeProducts(store.id), api.balances(store.id), api.movements(store.id)])
     return { configurations: configurations.items, balances: balances.items, movements: movements.items }
@@ -61,6 +68,7 @@ async function fetchDashboard(): Promise<DashboardData> {
     stores: storesResponse.items,
     products: productsResponse.items,
     alerts: alertsResponse.items,
+    sales: salesResponse.items,
     configurations: slices.flatMap((slice) => slice.configurations),
     balances: slices.flatMap((slice) => slice.balances),
     movements: slices.flatMap((slice) => slice.movements).sort((left, right) => right.created_at.localeCompare(left.created_at)),
@@ -92,6 +100,7 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [movementOpen, setMovementOpen] = useState(false)
+  const [saleOpen, setSaleOpen] = useState(false)
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase('fr'))
 
   async function loadDashboard() {
@@ -161,6 +170,14 @@ function App() {
     window.setTimeout(() => setNotice(null), 4500)
   }
 
+  async function handleSale(input: SaleInput) {
+    await api.createSale(input)
+    setDashboard(await fetchDashboard())
+    setSaleOpen(false)
+    setNotice('La vente a été validée et le stock a été mis à jour.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
   if (authState === 'checking') {
     return <main className="boot-screen" aria-label="Chargement de KërManager"><span className="brand-symbol"><ShoppingBag size={22} /></span><LoaderCircle className="spin" size={22} /></main>
   }
@@ -174,16 +191,19 @@ function App() {
   const scopedBalances = dashboard.balances.filter((balance) => scopedStoreIds.has(balance.store_id))
   const scopedAlerts = dashboard.alerts.filter((alert) => scopedStoreIds.has(alert.store_id))
   const scopedMovements = dashboard.movements.filter((movement) => scopedStoreIds.has(movement.store_id))
+  const scopedSales = dashboard.sales.filter((sale) => scopedStoreIds.has(sale.store_id))
   const matchesSearch = (...parts: (string | undefined)[]) => !deferredSearch || parts.join(' ').toLocaleLowerCase('fr').includes(deferredSearch)
   const filteredStores = dashboard.stores.filter((store) => scopedStoreIds.has(store.id) && matchesSearch(store.name, store.code))
   const filteredBalances = scopedBalances.filter((balance) => matchesSearch(productById.get(balance.product_id)?.name, productById.get(balance.product_id)?.sku, storeById.get(balance.store_id)?.name))
   const filteredAlerts = scopedAlerts.filter((alert) => matchesSearch(productById.get(alert.product_id)?.name, productById.get(alert.product_id)?.sku, storeById.get(alert.store_id)?.name))
   const filteredMovements = scopedMovements.filter((movement) => matchesSearch(productById.get(movement.product_id)?.name, productById.get(movement.product_id)?.sku, storeById.get(movement.store_id)?.name, movement.reason))
+  const filteredSales = scopedSales.filter((sale) => matchesSearch(sale.id, storeById.get(sale.store_id)?.name, ...sale.lines.map((line) => productById.get(line.product_id)?.name)))
   const trackedProductCount = new Set(scopedConfigurations.filter((configuration) => configuration.is_active).map((item) => item.product_id)).size
   const totalStock = scopedBalances.reduce((sum, balance) => sum + Number(balance.quantity), 0)
   const outOfStockCount = scopedAlerts.filter((alert) => alert.alert_type === 'out_of_stock').length
   const activeStoreCount = dashboard.stores.filter((store) => scopedStoreIds.has(store.id) && store.is_active).length
-  const movementDefaultStore = selectedStoreId === 'all' ? dashboard.stores.find((store) => store.is_active)?.id ?? '' : selectedStoreId
+  const totalRevenue = scopedSales.reduce((sum, sale) => sum + Number(sale.total_amount), 0)
+  const actionDefaultStore = selectedStoreId === 'all' ? dashboard.stores.find((store) => store.is_active)?.id ?? '' : selectedStoreId
 
   return (
     <div className="app-shell">
@@ -198,6 +218,7 @@ function App() {
           <a className="nav-link active" href="#dashboard"><LayoutDashboard size={19} />Vue d’ensemble</a>
           <a className="nav-link" href="#shops"><StoreIcon size={19} />Boutiques<span className="nav-count">{dashboard.stores.length}</span></a>
           <a className="nav-link" href="#stock"><Package size={19} />Produits & stock</a>
+          <a className="nav-link" href="#sales"><ReceiptText size={19} />Ventes<span className="nav-count">{dashboard.sales.length}</span></a>
           <a className="nav-link" href="#movements"><Boxes size={19} />Mouvements</a>
           <a className="nav-link" href="#alerts"><CircleAlert size={19} />Alertes<span className="nav-count alert">{dashboard.alerts.length}</span></a>
         </nav>
@@ -226,7 +247,8 @@ function App() {
             <div><p className="eyebrow">SITUATION OPÉRATIONNELLE</p><h1>Bonjour {user.full_name.split(' ')[0]},</h1><p>Les niveaux de stock de vos boutiques sont à jour.</p></div>
             <div className="heading-actions">
               <button className="icon-button" type="button" onClick={() => void loadDashboard()} aria-label="Actualiser" title="Actualiser" disabled={loading}><RefreshCw className={loading ? 'spin' : ''} size={18} /></button>
-              {user.role === 'manager' && <button className="primary-button" type="button" onClick={() => setMovementOpen(true)} disabled={dashboard.stores.length === 0}><Plus size={18} />Nouveau mouvement</button>}
+              {user.role === 'manager' && <button className="secondary-button action-button" type="button" onClick={() => setMovementOpen(true)} disabled={dashboard.stores.length === 0}><Boxes size={17} />Mouvement</button>}
+              {user.role === 'manager' && <button className="primary-button" type="button" onClick={() => setSaleOpen(true)} disabled={dashboard.stores.length === 0}><Plus size={18} />Nouvelle vente</button>}
             </div>
           </section>
 
@@ -234,7 +256,7 @@ function App() {
             <article className="metric-card accent-card"><div className="metric-icon"><Package size={21} /></div><p>Produits suivis</p><strong>{trackedProductCount}</strong><span className="neutral">{scopedConfigurations.length} configuration{scopedConfigurations.length > 1 ? 's' : ''} boutique</span></article>
             <article className="metric-card"><div className="metric-icon blue"><Boxes size={21} /></div><p>Unités en stock</p><strong>{formatQuantity(totalStock)}</strong><span className="neutral">Solde consolidé disponible</span></article>
             <article className="metric-card"><div className="metric-icon amber"><CircleAlert size={21} /></div><p>Alertes de stock</p><strong>{scopedAlerts.length}</strong><span className="warning">{outOfStockCount} rupture{outOfStockCount > 1 ? 's' : ''} · {scopedAlerts.length - outOfStockCount} faible{scopedAlerts.length - outOfStockCount > 1 ? 's' : ''}</span></article>
-            <article className="metric-card"><div className="metric-icon graphite"><StoreIcon size={21} /></div><p>Boutiques actives</p><strong>{activeStoreCount}</strong><span className="neutral">sur {scopedStoreIds.size} visible{scopedStoreIds.size > 1 ? 's' : ''}</span></article>
+            <article className="metric-card"><div className="metric-icon graphite"><Banknote size={21} /></div><p>Chiffre d’affaires</p><strong>{moneyFormatter.format(totalRevenue)}</strong><span className="neutral">{scopedSales.length} vente{scopedSales.length > 1 ? 's' : ''} · {activeStoreCount} boutique{activeStoreCount > 1 ? 's' : ''}</span></article>
           </section>
 
           <section className="dashboard-grid">
@@ -266,15 +288,24 @@ function App() {
               })}</tbody></table></div>}
             </article>
 
+            <article className="panel sales-panel" id="sales">
+              <div className="panel-heading"><div><h2>Ventes récentes</h2><p>Transactions validées et chiffre d’affaires</p></div><span className="panel-count">{filteredSales.length}</span></div>
+              {filteredSales.length === 0 ? <EmptyState>Aucune vente ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Référence</th><th>Boutique</th><th>Date</th><th>Articles</th><th>Total</th></tr></thead><tbody>{filteredSales.slice(0, 12).map((sale) => <tr key={sale.id}><td><strong>#{sale.id.slice(0, 8).toUpperCase()}</strong><small>{sale.lines.length} produit{sale.lines.length > 1 ? 's' : ''}</small></td><td>{storeById.get(sale.store_id)?.name}</td><td>{dateFormatter.format(new Date(sale.created_at))}</td><td>{formatQuantity(sale.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td><td><strong>{moneyFormatter.format(Number(sale.total_amount))}</strong></td></tr>)}</tbody></table></div>}
+            </article>
+
             <article className="panel movements-panel" id="movements">
               <div className="panel-heading"><div><h2>Mouvements récents</h2><p>Historique immuable des variations</p></div><span className="panel-count">{filteredMovements.length}</span></div>
-              {filteredMovements.length === 0 ? <EmptyState>Aucun mouvement ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Type</th><th>Produit</th><th>Boutique</th><th>Date</th><th>Quantité</th><th>Nouveau stock</th><th></th></tr></thead><tbody>{filteredMovements.slice(0, 12).map((movement) => <tr key={movement.id}><td><span className={`movement-type ${movement.movement_type === 'adjustment_out' ? 'out' : 'in'}`}>{movementLabels[movement.movement_type]}</span></td><td><strong>{productById.get(movement.product_id)?.name ?? 'Produit inconnu'}</strong><small>{productById.get(movement.product_id)?.sku}</small></td><td>{storeById.get(movement.store_id)?.name}</td><td>{dateFormatter.format(new Date(movement.created_at))}</td><td><strong>{movement.movement_type === 'adjustment_out' ? '−' : '+'}{formatQuantity(movement.quantity)}</strong></td><td>{formatQuantity(movement.new_quantity)}</td><td><button className="row-action" type="button" title={movement.reason} aria-label={`Motif : ${movement.reason}`}><ChevronRight size={16} /></button></td></tr>)}</tbody></table></div>}
+              {filteredMovements.length === 0 ? <EmptyState>Aucun mouvement ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Type</th><th>Produit</th><th>Boutique</th><th>Date</th><th>Quantité</th><th>Nouveau stock</th><th></th></tr></thead><tbody>{filteredMovements.slice(0, 12).map((movement) => {
+                const isOutput = movement.movement_type === 'adjustment_out' || movement.movement_type === 'sale'
+                return <tr key={movement.id}><td><span className={`movement-type ${isOutput ? 'out' : 'in'}`}>{movementLabels[movement.movement_type]}</span></td><td><strong>{productById.get(movement.product_id)?.name ?? 'Produit inconnu'}</strong><small>{productById.get(movement.product_id)?.sku}</small></td><td>{storeById.get(movement.store_id)?.name}</td><td>{dateFormatter.format(new Date(movement.created_at))}</td><td><strong>{isOutput ? '−' : '+'}{formatQuantity(movement.quantity)}</strong></td><td>{formatQuantity(movement.new_quantity)}</td><td><button className="row-action" type="button" title={movement.reason} aria-label={`Motif : ${movement.reason}`}><ChevronRight size={16} /></button></td></tr>
+              })}</tbody></table></div>}
             </article>
           </section>
         </div>
       </main>
 
-      {movementOpen && <MovementDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} defaultStoreId={movementDefaultStore} onClose={() => setMovementOpen(false)} onSubmit={handleMovement} />}
+      {movementOpen && <MovementDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} defaultStoreId={actionDefaultStore} onClose={() => setMovementOpen(false)} onSubmit={handleMovement} />}
+      {saleOpen && <SaleDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} balances={dashboard.balances} defaultStoreId={actionDefaultStore} onClose={() => setSaleOpen(false)} onSubmit={handleSale} />}
     </div>
   )
 }

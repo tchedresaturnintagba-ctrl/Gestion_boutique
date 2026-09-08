@@ -24,6 +24,7 @@ class StockMovementType(StrEnum):
     ENTRY = "entry"
     ADJUSTMENT_IN = "adjustment_in"
     ADJUSTMENT_OUT = "adjustment_out"
+    SALE = "sale"
 
 
 class StockAlertType(StrEnum):
@@ -66,6 +67,11 @@ class StockMovement(Base):
     __tablename__ = "stock_movements"
     __table_args__ = (
         ForeignKeyConstraint(
+            ["sale_id", "organization_id"],
+            ["sales.id", "sales.organization_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["organization_id", "store_id", "product_id"],
             [
                 "store_products.organization_id",
@@ -90,6 +96,7 @@ class StockMovement(Base):
     actor_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
     )
+    sale_id: Mapped[UUID | None] = mapped_column(index=True)
     movement_type: Mapped[StockMovementType] = mapped_column(
         Enum(
             StockMovementType,

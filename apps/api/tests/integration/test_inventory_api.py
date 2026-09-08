@@ -100,6 +100,18 @@ def test_stock_movements_alerts_and_concurrent_output() -> None:
                 )
                 assert owner_write_response.status_code == 403
 
+                manual_sale_response = await client.post(
+                    movement_url,
+                    headers=manager_headers,
+                    json={
+                        "product_id": product_id,
+                        "movement_type": "sale",
+                        "quantity": "1.000",
+                        "reason": "Vente manuelle interdite",
+                    },
+                )
+                assert manual_sale_response.status_code == 422
+
                 entry_response = await client.post(
                     movement_url,
                     headers=manager_headers,

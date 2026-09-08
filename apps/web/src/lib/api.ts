@@ -5,7 +5,8 @@ const REFRESH_TOKEN_KEY = 'ker-manager-refresh-token'
 
 export type UserRole = 'manager' | 'owner'
 export type ProductUnit = 'piece' | 'pack' | 'kilogram' | 'liter'
-export type StockMovementType = 'entry' | 'adjustment_in' | 'adjustment_out'
+export type StockMovementType = 'entry' | 'adjustment_in' | 'adjustment_out' | 'sale'
+export type ManualStockMovementType = Exclude<StockMovementType, 'sale'>
 export type StockAlertType = 'out_of_stock' | 'low_stock'
 
 export interface TokenPair {
@@ -72,6 +73,7 @@ export interface StockMovement {
   store_id: string
   product_id: string
   actor_user_id: string | null
+  sale_id: string | null
   movement_type: StockMovementType
   quantity: string
   previous_quantity: string
@@ -90,6 +92,24 @@ export interface StockAlert {
   threshold: string
   created_at: string
   resolved_at: string | null
+}
+
+export interface SaleLine {
+  id: string
+  product_id: string
+  quantity: string
+  unit_price: number
+  line_total: string
+}
+
+export interface Sale {
+  id: string
+  organization_id: string
+  store_id: string
+  actor_user_id: string | null
+  total_amount: string
+  created_at: string
+  lines: SaleLine[]
 }
 
 export interface Page<T> {
@@ -113,9 +133,14 @@ export interface LoginCredentials {
 
 export interface StockMovementInput {
   product_id: string
-  movement_type: StockMovementType
+  movement_type: ManualStockMovementType
   quantity: string
   reason: string
+}
+
+export interface SaleInput {
+  store_id: string
+  lines: Array<{ product_id: string; quantity: string }>
 }
 
 export class ApiError extends Error {
@@ -153,6 +178,9 @@ function errorMessage(body: unknown, fallback: string): string {
         return String(item)
       })
       .join(' · ')
+  }
+  if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+    return String(detail.message)
   }
   return fallback
 }
@@ -249,8 +277,14 @@ export const api = {
   movements: (storeId: string) =>
     request<Page<StockMovement>>(`/inventory/stores/${storeId}/movements?page=1&page_size=100`),
   alerts: () => allPages<StockAlert>('/inventory/alerts?open_only=true'),
+  sales: () => allPages<Sale>('/sales'),
   createMovement: (storeId: string, input: StockMovementInput) =>
     request<StockMovementResult>(`/inventory/stores/${storeId}/movements`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  createSale: (input: SaleInput) =>
+    request<Sale>('/sales', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

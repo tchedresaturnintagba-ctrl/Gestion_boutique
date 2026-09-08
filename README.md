@@ -18,10 +18,11 @@ Le socle initial comprend :
 - des soldes de stock matérialisés et un historique de mouvements immuable;
 - des alertes automatiques de stock faible et de rupture;
 - des écritures de stock sérialisées qui refusent atomiquement tout solde négatif;
-- les premières règles métier testées: saisie par le gestionnaire et refus du stock négatif;
+- des ventes multi-produits atomiques avec prix figés, chiffre d'affaires et mouvements de stock liés;
+- les règles métier de vente testées: saisie réservée au gestionnaire, fusion des lignes et refus sans écriture partielle;
 - un environnement Python local associé au workspace VS Code.
 
-Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les soldes, les mouvements et les alertes. Les gestionnaires peuvent enregistrer un mouvement de stock depuis l'interface.
+Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
 
 ## Structure
 
@@ -112,6 +113,8 @@ Endpoints disponibles :
 - `GET /api/v1/inventory/stores/{store_id}/balances` : soldes de stock;
 - `GET|POST /api/v1/inventory/stores/{store_id}/movements` : historique et mouvement;
 - `GET /api/v1/inventory/alerts` : alertes ouvertes ou historiques.
+- `GET|POST /api/v1/sales` : historique accessible et saisie atomique d'une vente;
+- `GET /api/v1/sales/{sale_id}` : détail d'une vente et de ses lignes.
 
 ## Contrôles qualité
 

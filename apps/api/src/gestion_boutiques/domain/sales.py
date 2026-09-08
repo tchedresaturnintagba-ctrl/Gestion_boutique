@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
@@ -12,14 +13,14 @@ class UserRole(StrEnum):
 @dataclass(frozen=True, slots=True)
 class SaleLine:
     product_id: UUID
-    quantity: int
+    quantity: Decimal
 
 
 @dataclass(frozen=True, slots=True)
 class StockShortage:
     product_id: UUID
-    available_quantity: int
-    requested_quantity: int
+    available_quantity: Decimal
+    requested_quantity: Decimal
 
 
 class SaleValidationError(ValueError):
@@ -44,7 +45,7 @@ def validate_sale(
     *,
     actor_role: UserRole,
     lines: Sequence[SaleLine],
-    available_stock: Mapping[UUID, int],
+    available_stock: Mapping[UUID, Decimal],
 ) -> None:
     if actor_role is not UserRole.MANAGER:
         raise SalePermissionError("Seul un gestionnaire peut saisir une vente dans le MVP")
@@ -52,7 +53,7 @@ def validate_sale(
     if not lines:
         raise InvalidSaleQuantityError("Une vente doit contenir au moins un produit")
 
-    requested_by_product: dict[UUID, int] = {}
+    requested_by_product: dict[UUID, Decimal] = {}
     for line in lines:
         if line.quantity <= 0:
             raise InvalidSaleQuantityError("La quantité vendue doit être strictement positive")

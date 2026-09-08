@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,7 +10,11 @@ from gestion_boutiques.models.inventory import StockAlertType, StockMovementType
 
 class StockMovementCreate(BaseModel):
     product_id: UUID
-    movement_type: StockMovementType
+    movement_type: Literal[
+        StockMovementType.ENTRY,
+        StockMovementType.ADJUSTMENT_IN,
+        StockMovementType.ADJUSTMENT_OUT,
+    ]
     quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     reason: str = Field(min_length=2, max_length=255)
 
@@ -44,6 +49,7 @@ class StockMovementResponse(BaseModel):
     store_id: UUID
     product_id: UUID
     actor_user_id: UUID | None
+    sale_id: UUID | None
     movement_type: StockMovementType
     quantity: Decimal
     previous_quantity: Decimal

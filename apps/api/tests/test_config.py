@@ -4,6 +4,15 @@ from pydantic import ValidationError
 from gestion_boutiques.config import Settings
 
 
+def test_development_allows_vite_loopback_origins() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.cors_origins == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+
 def test_production_rejects_placeholder_secrets() -> None:
     with pytest.raises(ValidationError, match="PostgreSQL de production"):
         Settings(

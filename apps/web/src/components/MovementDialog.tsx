@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine, LoaderCircle, X } from 'lucide-react'
-import type { Product, StockMovementInput, StockMovementType, Store, StoreProduct } from '../lib/api'
+import type { ManualStockMovementType, Product, StockMovementInput, Store, StoreProduct } from '../lib/api'
 
 interface MovementDialogProps {
   stores: Store[]
@@ -11,7 +11,7 @@ interface MovementDialogProps {
   onSubmit: (storeId: string, input: StockMovementInput) => Promise<void>
 }
 
-const movementLabels: Record<StockMovementType, string> = {
+const movementLabels: Record<ManualStockMovementType, string> = {
   entry: 'Entrée de stock',
   adjustment_in: 'Ajustement positif',
   adjustment_out: 'Ajustement négatif',
@@ -22,7 +22,7 @@ export function MovementDialog({ stores, products, configurations, defaultStoreI
   const initialProducts = configurations.filter((configuration) => configuration.store_id === initialStoreId && configuration.is_active)
   const [storeId, setStoreId] = useState(initialStoreId)
   const [productId, setProductId] = useState(initialProducts[0]?.product_id ?? '')
-  const [movementType, setMovementType] = useState<StockMovementType>('entry')
+  const [movementType, setMovementType] = useState<ManualStockMovementType>('entry')
   const [quantity, setQuantity] = useState('')
   const [reason, setReason] = useState('')
   const [pending, setPending] = useState(false)
@@ -72,7 +72,7 @@ export function MovementDialog({ stores, products, configurations, defaultStoreI
           </label>
           <fieldset className="movement-kind">
             <legend>Type de mouvement</legend>
-            {(Object.keys(movementLabels) as StockMovementType[]).map((type) => (
+            {(Object.keys(movementLabels) as ManualStockMovementType[]).map((type) => (
               <label key={type} className={movementType === type ? 'selected' : ''}>
                 <input type="radio" name="movement-type" value={type} checked={movementType === type} onChange={() => setMovementType(type)} />
                 {type === 'adjustment_out' ? <ArrowUpFromLine size={17} /> : <ArrowDownToLine size={17} />}

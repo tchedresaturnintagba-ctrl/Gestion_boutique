@@ -9,6 +9,8 @@ def test_identity_tables_are_registered() -> None:
         "inventory_balances",
         "organizations",
         "products",
+        "sale_lines",
+        "sales",
         "stock_alerts",
         "stock_movements",
         "store_ownerships",

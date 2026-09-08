@@ -11,6 +11,7 @@ from gestion_boutiques.api.catalog import router as catalog_router
 from gestion_boutiques.api.inventory import router as inventory_router
 from gestion_boutiques.api.owners import router as owners_router
 from gestion_boutiques.api.ownerships import router as ownerships_router
+from gestion_boutiques.api.sales import router as sales_router
 from gestion_boutiques.api.stores import router as stores_router
 from gestion_boutiques.config import get_settings
 from gestion_boutiques.db.session import get_db_session
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     application.include_router(inventory_router, prefix=settings.api_v1_prefix)
     application.include_router(owners_router, prefix=settings.api_v1_prefix)
     application.include_router(ownerships_router, prefix=settings.api_v1_prefix)
+    application.include_router(sales_router, prefix=settings.api_v1_prefix)
     application.include_router(stores_router, prefix=settings.api_v1_prefix)
 
     @application.get("/health", tags=["system"])
