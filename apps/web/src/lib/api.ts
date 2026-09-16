@@ -35,6 +35,27 @@ export interface Store {
   updated_at: string
 }
 
+export interface Owner {
+  id: string
+  organization_id: string
+  email: string
+  full_name: string
+  role: 'owner'
+  is_active: boolean
+  store_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Category {
+  id: string
+  organization_id: string
+  name: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Product {
   id: string
   organization_id: string
@@ -135,6 +156,32 @@ export interface StoreInput {
   name: string
   code: string
   address: string | null
+}
+
+export interface OwnerInput {
+  email: string
+  full_name: string
+  password: string
+}
+
+export type OwnerUpdateInput = Omit<OwnerInput, 'password'>
+
+export interface CategoryInput {
+  name: string
+}
+
+export interface ProductInput {
+  category_id: string | null
+  name: string
+  sku: string
+  description: string | null
+  unit: ProductUnit
+}
+
+export interface StoreProductInput {
+  unit_price: number
+  low_stock_threshold: string
+  is_active: boolean
 }
 
 export interface StockMovementInput {
@@ -289,9 +336,59 @@ export const api = {
     request<void>(`/stores/${storeId}/${isActive ? 'activate' : 'suspend'}`, {
       method: 'POST',
     }),
+  owners: () => allPages<Owner>('/owners'),
+  createOwner: (input: OwnerInput) =>
+    request<Owner>('/owners', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateOwner: (ownerId: string, input: OwnerUpdateInput) =>
+    request<Owner>(`/owners/${ownerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  setOwnerActive: (ownerId: string, isActive: boolean) =>
+    request<void>(`/owners/${ownerId}/${isActive ? 'activate' : 'suspend'}`, {
+      method: 'POST',
+    }),
+  resetOwnerPassword: (ownerId: string, newPassword: string) =>
+    request<void>(`/owners/${ownerId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
+  assignOwner: (storeId: string, ownerId: string) =>
+    request<void>(`/stores/${storeId}/owners/${ownerId}`, { method: 'POST' }),
+  unassignOwner: (storeId: string, ownerId: string) =>
+    request<void>(`/stores/${storeId}/owners/${ownerId}`, { method: 'DELETE' }),
+  categories: () => request<{ items: Category[]; total: number }>('/catalog/categories'),
+  createCategory: (input: CategoryInput) =>
+    request<Category>('/catalog/categories', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateCategory: (categoryId: string, input: Partial<CategoryInput> & { is_active?: boolean }) =>
+    request<Category>(`/catalog/categories/${categoryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   products: () => allPages<Product>('/catalog/products'),
+  createProduct: (input: ProductInput) =>
+    request<Product>('/catalog/products', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateProduct: (productId: string, input: ProductInput & { is_active: boolean }) =>
+    request<Product>(`/catalog/products/${productId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   storeProducts: (storeId: string) =>
     allPages<StoreProduct>(`/catalog/stores/${storeId}/products`),
+  configureStoreProduct: (storeId: string, productId: string, input: StoreProductInput) =>
+    request<StoreProduct>(`/catalog/stores/${storeId}/products/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   balances: (storeId: string) =>
     allPages<InventoryBalance>(`/inventory/stores/${storeId}/balances`),
   movements: (storeId: string) =>

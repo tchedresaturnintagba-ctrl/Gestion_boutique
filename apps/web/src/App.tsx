@@ -18,11 +18,18 @@ import {
   ReceiptText,
   Search,
   ShoppingBag,
+  SlidersHorizontal,
   Store as StoreIcon,
+  Tags,
+  UsersRound,
   X,
 } from 'lucide-react'
+import { CategoryDialog } from './components/CategoryDialog'
 import { LoginScreen } from './components/LoginScreen'
 import { MovementDialog } from './components/MovementDialog'
+import { OwnerDialog, type OwnerFormInput } from './components/OwnerDialog'
+import { ProductConfigurationDialog } from './components/ProductConfigurationDialog'
+import { ProductDialog, type ProductFormInput } from './components/ProductDialog'
 import { SaleDialog } from './components/SaleDialog'
 import { StoreDialog } from './components/StoreDialog'
 import {
@@ -30,8 +37,10 @@ import {
   api,
   clearSession,
   hasSession,
+  type Category,
   type CurrentUser,
   type InventoryBalance,
+  type Owner,
   type Product,
   type Sale,
   type SaleInput,
@@ -41,11 +50,14 @@ import {
   type Store,
   type StoreInput,
   type StoreProduct,
+  type StoreProductInput,
 } from './lib/api'
 import './App.css'
 
 interface DashboardData {
   stores: Store[]
+  owners: Owner[]
+  categories: Category[]
   products: Product[]
   configurations: StoreProduct[]
   balances: InventoryBalance[]
@@ -55,22 +67,32 @@ interface DashboardData {
 }
 
 const emptyDashboard: DashboardData = {
-  stores: [], products: [], configurations: [], balances: [], movements: [], alerts: [], sales: [],
+  stores: [], owners: [], categories: [], products: [], configurations: [], balances: [], movements: [], alerts: [], sales: [],
 }
 const numberFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 })
 const moneyFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 })
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 const longDateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
 const movementLabels = { entry: 'Entrée', adjustment_in: 'Ajustement +', adjustment_out: 'Ajustement −', sale: 'Vente' }
+const productUnitLabels = { piece: 'Pièce', pack: 'Paquet', kilogram: 'Kilogramme', liter: 'Litre' }
 
-async function fetchDashboard(): Promise<DashboardData> {
-  const [storesResponse, productsResponse, alertsResponse, salesResponse] = await Promise.all([api.stores(), api.products(), api.alerts(), api.sales()])
+async function fetchDashboard(includeOwners: boolean): Promise<DashboardData> {
+  const [storesResponse, ownersResponse, categoriesResponse, productsResponse, alertsResponse, salesResponse] = await Promise.all([
+    api.stores(),
+    includeOwners ? api.owners() : Promise.resolve(null),
+    api.categories(),
+    api.products(),
+    api.alerts(),
+    api.sales(),
+  ])
   const slices = await Promise.all(storesResponse.items.map(async (store) => {
     const [configurations, balances, movements] = await Promise.all([api.storeProducts(store.id), api.balances(store.id), api.movements(store.id)])
     return { configurations: configurations.items, balances: balances.items, movements: movements.items }
   }))
   return {
     stores: storesResponse.items,
+    owners: ownersResponse?.items ?? [],
+    categories: categoriesResponse.items,
     products: productsResponse.items,
     alerts: alertsResponse.items,
     sales: salesResponse.items,
@@ -107,14 +129,19 @@ function App() {
   const [movementOpen, setMovementOpen] = useState(false)
   const [saleOpen, setSaleOpen] = useState(false)
   const [storeEditor, setStoreEditor] = useState<Store | null | undefined>(undefined)
+  const [ownerEditor, setOwnerEditor] = useState<Owner | null | undefined>(undefined)
+  const [categoryEditorOpen, setCategoryEditorOpen] = useState(false)
+  const [productEditor, setProductEditor] = useState<Product | null | undefined>(undefined)
+  const [configuringProduct, setConfiguringProduct] = useState<Product | null>(null)
   const [statusStoreId, setStatusStoreId] = useState<string | null>(null)
+  const [statusOwnerId, setStatusOwnerId] = useState<string | null>(null)
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase('fr'))
 
   async function loadDashboard() {
     setLoading(true)
     setLoadError(null)
     try {
-      setDashboard(await fetchDashboard())
+      setDashboard(await fetchDashboard(user?.role === 'manager'))
     } catch (caughtError) {
       if (caughtError instanceof ApiError && caughtError.status === 401) {
         clearSession()
@@ -138,7 +165,7 @@ function App() {
         setUser(currentUser)
         setAuthState('signed-in')
         try {
-          const data = await fetchDashboard()
+          const data = await fetchDashboard(currentUser.role === 'manager')
           if (active) setDashboard(data)
         } catch (caughtError) {
           if (active) setLoadError(caughtError instanceof Error ? caughtError.message : 'Chargement impossible')
@@ -155,7 +182,8 @@ function App() {
 
   async function handleLogin(credentials: Parameters<typeof api.login>[0]) {
     await api.login(credentials)
-    const [currentUser, data] = await Promise.all([api.me(), fetchDashboard()])
+    const currentUser = await api.me()
+    const data = await fetchDashboard(currentUser.role === 'manager')
     setUser(currentUser)
     setDashboard(data)
     setAuthState('signed-in')
@@ -171,7 +199,7 @@ function App() {
 
   async function handleMovement(storeId: string, input: StockMovementInput) {
     await api.createMovement(storeId, input)
-    setDashboard(await fetchDashboard())
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
     setMovementOpen(false)
     setNotice('Le mouvement de stock a été enregistré.')
     window.setTimeout(() => setNotice(null), 4500)
@@ -179,7 +207,7 @@ function App() {
 
   async function handleSale(input: SaleInput) {
     await api.createSale(input)
-    setDashboard(await fetchDashboard())
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
     setSaleOpen(false)
     setNotice('La vente a été validée et le stock a été mis à jour.')
     window.setTimeout(() => setNotice(null), 4500)
@@ -188,7 +216,7 @@ function App() {
   async function handleStore(input: StoreInput) {
     if (storeEditor) await api.updateStore(storeEditor.id, input)
     else await api.createStore(input)
-    setDashboard(await fetchDashboard())
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
     setStoreEditor(undefined)
     setNotice(storeEditor ? 'La boutique a été mise à jour.' : 'La boutique a été créée.')
     window.setTimeout(() => setNotice(null), 4500)
@@ -200,7 +228,7 @@ function App() {
     setLoadError(null)
     try {
       await api.setStoreActive(store.id, !store.is_active)
-      setDashboard(await fetchDashboard())
+      setDashboard(await fetchDashboard(user?.role === 'manager'))
       if (store.id === selectedStoreId && store.is_active) setSelectedStoreId('all')
       setNotice(store.is_active ? 'La boutique a été suspendue.' : 'La boutique a été réactivée.')
       window.setTimeout(() => setNotice(null), 4500)
@@ -211,12 +239,98 @@ function App() {
     }
   }
 
+  async function handleOwner(input: OwnerFormInput) {
+    let savedOwner: Owner
+    if (ownerEditor) {
+      savedOwner = await api.updateOwner(ownerEditor.id, {
+        email: input.email,
+        full_name: input.full_name,
+      })
+    } else {
+      if (!input.password) throw new Error('Le mot de passe initial est obligatoire')
+      savedOwner = await api.createOwner({
+        email: input.email,
+        full_name: input.full_name,
+        password: input.password,
+      })
+    }
+
+    const previousStoreIds = new Set(ownerEditor?.store_ids ?? [])
+    const selectedStoreIds = new Set(input.store_ids)
+    const changes: Promise<void>[] = []
+    for (const storeId of selectedStoreIds) {
+      if (!previousStoreIds.has(storeId)) changes.push(api.assignOwner(storeId, savedOwner.id))
+    }
+    for (const storeId of previousStoreIds) {
+      if (!selectedStoreIds.has(storeId)) changes.push(api.unassignOwner(storeId, savedOwner.id))
+    }
+    if (ownerEditor && input.new_password) {
+      changes.push(api.resetOwnerPassword(savedOwner.id, input.new_password))
+    }
+    await Promise.all(changes)
+
+    setDashboard(await fetchDashboard(true))
+    setOwnerEditor(undefined)
+    setNotice(ownerEditor ? 'Le propriétaire a été mis à jour.' : 'Le propriétaire a été créé.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
+  async function handleOwnerStatus(owner: Owner) {
+    if (owner.is_active && !window.confirm(`Suspendre ${owner.full_name} ?`)) return
+    setStatusOwnerId(owner.id)
+    setLoadError(null)
+    try {
+      await api.setOwnerActive(owner.id, !owner.is_active)
+      setDashboard(await fetchDashboard(true))
+      setNotice(owner.is_active ? 'Le propriétaire a été suspendu.' : 'Le propriétaire a été réactivé.')
+      window.setTimeout(() => setNotice(null), 4500)
+    } catch (caughtError) {
+      setLoadError(caughtError instanceof Error ? caughtError.message : 'Changement de statut impossible')
+    } finally {
+      setStatusOwnerId(null)
+    }
+  }
+
+  async function handleCreateCategory(name: string) {
+    await api.createCategory({ name })
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
+    setNotice('La catégorie a été créée.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
+  async function handleUpdateCategory(category: Category, changes: { name?: string; is_active?: boolean }) {
+    await api.updateCategory(category.id, changes)
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
+    setNotice('La catégorie a été mise à jour.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
+  async function handleProduct(input: ProductFormInput) {
+    const { is_active: isActive, ...productInput } = input
+    if (productEditor) await api.updateProduct(productEditor.id, { ...productInput, is_active: isActive })
+    else await api.createProduct(productInput)
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
+    setProductEditor(undefined)
+    setNotice(productEditor ? 'Le produit a été mis à jour.' : 'Le produit a été créé.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
+  async function handleProductConfiguration(storeId: string, input: StoreProductInput) {
+    if (!configuringProduct) return
+    await api.configureStoreProduct(storeId, configuringProduct.id, input)
+    setDashboard(await fetchDashboard(user?.role === 'manager'))
+    setConfiguringProduct(null)
+    setNotice('Le prix et le seuil de stock ont été enregistrés.')
+    window.setTimeout(() => setNotice(null), 4500)
+  }
+
   if (authState === 'checking') {
     return <main className="boot-screen" aria-label="Chargement de KërManager"><span className="brand-symbol"><ShoppingBag size={22} /></span><LoaderCircle className="spin" size={22} /></main>
   }
   if (authState === 'signed-out' || user === null) return <LoginScreen onLogin={handleLogin} />
 
   const storeById = new Map(dashboard.stores.map((store) => [store.id, store]))
+  const categoryById = new Map(dashboard.categories.map((category) => [category.id, category]))
   const productById = new Map(dashboard.products.map((product) => [product.id, product]))
   const configurationByKey = new Map(dashboard.configurations.map((configuration) => [`${configuration.store_id}:${configuration.product_id}`, configuration]))
   const scopedStoreIds = new Set(dashboard.stores.filter((store) => selectedStoreId === 'all' || store.id === selectedStoreId).map((store) => store.id))
@@ -227,6 +341,11 @@ function App() {
   const scopedSales = dashboard.sales.filter((sale) => scopedStoreIds.has(sale.store_id))
   const matchesSearch = (...parts: (string | undefined)[]) => !deferredSearch || parts.join(' ').toLocaleLowerCase('fr').includes(deferredSearch)
   const filteredStores = dashboard.stores.filter((store) => scopedStoreIds.has(store.id) && matchesSearch(store.name, store.code))
+  const filteredOwners = dashboard.owners.filter((owner) => (
+    (selectedStoreId === 'all' || owner.store_ids.includes(selectedStoreId))
+    && matchesSearch(owner.full_name, owner.email, ...owner.store_ids.map((storeId) => storeById.get(storeId)?.name))
+  ))
+  const filteredProducts = dashboard.products.filter((product) => matchesSearch(product.name, product.sku, product.category_id ? categoryById.get(product.category_id)?.name : undefined))
   const filteredBalances = scopedBalances.filter((balance) => matchesSearch(productById.get(balance.product_id)?.name, productById.get(balance.product_id)?.sku, storeById.get(balance.store_id)?.name))
   const filteredAlerts = scopedAlerts.filter((alert) => matchesSearch(productById.get(alert.product_id)?.name, productById.get(alert.product_id)?.sku, storeById.get(alert.store_id)?.name))
   const filteredMovements = scopedMovements.filter((movement) => matchesSearch(productById.get(movement.product_id)?.name, productById.get(movement.product_id)?.sku, storeById.get(movement.store_id)?.name, movement.reason))
@@ -254,7 +373,9 @@ function App() {
           <p className="nav-caption">ESPACE DE TRAVAIL</p>
           <a className="nav-link active" href="#dashboard"><LayoutDashboard size={19} />Vue d’ensemble</a>
           <a className="nav-link" href="#shops"><StoreIcon size={19} />Boutiques<span className="nav-count">{dashboard.stores.length}</span></a>
-          <a className="nav-link" href="#stock"><Package size={19} />Produits & stock</a>
+          {user.role === 'manager' && <a className="nav-link" href="#owners"><UsersRound size={19} />Propriétaires<span className="nav-count">{dashboard.owners.length}</span></a>}
+          <a className="nav-link" href="#catalog"><Tags size={19} />Catalogue<span className="nav-count">{dashboard.products.length}</span></a>
+          <a className="nav-link" href="#stock"><Package size={19} />Inventaire</a>
           <a className="nav-link" href="#sales"><ReceiptText size={19} />Ventes<span className="nav-count">{dashboard.sales.length}</span></a>
           <a className="nav-link" href="#movements"><Boxes size={19} />Mouvements</a>
           <a className="nav-link" href="#alerts"><CircleAlert size={19} />Alertes<span className="nav-count alert">{dashboard.alerts.length}</span></a>
@@ -269,7 +390,7 @@ function App() {
       <main className="main-content" id="dashboard">
         <header className="topbar">
           <button className="icon-button menu-button" type="button" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu"><Menu size={21} /></button>
-          <label className="search-box"><Search size={18} /><span className="sr-only">Rechercher</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher une boutique, un produit…" /></label>
+          <label className="search-box"><Search size={18} /><span className="sr-only">Rechercher</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher une boutique, un produit, un propriétaire…" /></label>
           <div className="topbar-actions">
             <label className="store-filter"><span className="sr-only">Filtrer par boutique</span><StoreIcon size={15} /><select value={selectedStoreId} onChange={(event) => setSelectedStoreId(event.target.value)}><option value="all">Toutes les boutiques</option>{dashboard.stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
             <span className="period-label">{longDateFormatter.format(new Date())}</span>
@@ -314,6 +435,20 @@ function App() {
               {filteredAlerts.length === 0 ? <EmptyState>Aucune alerte ouverte dans cette vue.</EmptyState> : <div className="alert-list">{filteredAlerts.slice(0, 5).map((alert) => <div className={`alert-row ${alert.alert_type === 'out_of_stock' ? 'critical' : 'low'}`} key={alert.id}><span className="product-icon"><Package size={18} /></span><div><strong>{productById.get(alert.product_id)?.name ?? 'Produit inconnu'}</strong><span>{storeById.get(alert.store_id)?.name ?? 'Boutique inconnue'}</span></div><b>{alert.alert_type === 'out_of_stock' ? 'Rupture' : `${formatQuantity(alert.observed_quantity)} restant`}</b></div>)}</div>}
             </article>
 
+            {user.role === 'manager' && <article className="panel owners-panel" id="owners">
+              <div className="panel-heading"><div><h2>Propriétaires</h2><p>Accès aux boutiques et état des comptes</p></div><div className="panel-heading-actions"><span className="panel-count">{filteredOwners.length}</span><button className="panel-command" type="button" onClick={() => setOwnerEditor(null)}><Plus size={15} />Ajouter</button></div></div>
+              {filteredOwners.length === 0 ? <EmptyState>Aucun propriétaire ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Propriétaire</th><th>Boutiques accessibles</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{filteredOwners.map((owner) => <tr key={owner.id}><td><strong>{owner.full_name}</strong><small>{owner.email}</small></td><td><strong>{owner.store_ids.length} boutique{owner.store_ids.length > 1 ? 's' : ''}</strong><small>{owner.store_ids.map((storeId) => storeById.get(storeId)?.name).filter(Boolean).join(' · ') || 'Aucun rattachement'}</small></td><td><span className={`catalog-status ${owner.is_active ? '' : 'inactive'}`}>{owner.is_active ? 'Actif' : 'Suspendu'}</span></td><td><div className="catalog-actions"><button type="button" onClick={() => setOwnerEditor(owner)} aria-label={`Modifier ${owner.full_name}`} title="Modifier"><Pencil size={15} /></button><button type="button" className={owner.is_active ? 'danger' : 'activate'} onClick={() => void handleOwnerStatus(owner)} disabled={statusOwnerId === owner.id} aria-label={`${owner.is_active ? 'Suspendre' : 'Réactiver'} ${owner.full_name}`} title={owner.is_active ? 'Suspendre' : 'Réactiver'}>{owner.is_active ? <PowerOff size={15} /> : <Power size={15} />}</button></div></td></tr>)}</tbody></table></div>}
+            </article>}
+
+            <article className="panel catalog-panel" id="catalog">
+              <div className="panel-heading"><div><h2>Catalogue produits</h2><p>Référentiel central, prix et seuils par boutique</p></div><div className="panel-heading-actions"><span className="panel-count">{filteredProducts.length}</span>{user.role === 'manager' && <><button className="panel-command" type="button" onClick={() => setCategoryEditorOpen(true)}><Tags size={15} />Catégories</button><button className="panel-command" type="button" onClick={() => setProductEditor(null)}><Plus size={15} />Produit</button></>}</div></div>
+              {filteredProducts.length === 0 ? <EmptyState>Aucun produit ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Produit</th><th>Catégorie</th><th>Unité</th><th>{selectedStoreId === 'all' ? 'Couverture' : 'Prix & seuil'}</th><th>État</th>{user.role === 'manager' && <th><span className="sr-only">Actions</span></th>}</tr></thead><tbody>{filteredProducts.map((product) => {
+                const productConfigurations = scopedConfigurations.filter((configuration) => configuration.product_id === product.id)
+                const selectedConfiguration = selectedStoreId === 'all' ? undefined : productConfigurations[0]
+                return <tr key={product.id}><td><strong>{product.name}</strong><small>{product.sku}</small></td><td>{product.category_id ? categoryById.get(product.category_id)?.name ?? 'Catégorie inactive' : 'Sans catégorie'}</td><td>{productUnitLabels[product.unit]}</td><td>{selectedConfiguration ? <><strong>{moneyFormatter.format(selectedConfiguration.unit_price)}</strong><small>Seuil {formatQuantity(selectedConfiguration.low_stock_threshold)}</small></> : <><strong>{productConfigurations.filter((configuration) => configuration.is_active).length} boutique{productConfigurations.filter((configuration) => configuration.is_active).length > 1 ? 's' : ''}</strong><small>{productConfigurations.length} configuration{productConfigurations.length > 1 ? 's' : ''}</small></>}</td><td><span className={`catalog-status ${product.is_active ? '' : 'inactive'}`}>{product.is_active ? 'Actif' : 'Inactif'}</span></td>{user.role === 'manager' && <td><div className="catalog-actions"><button type="button" onClick={() => setProductEditor(product)} aria-label={`Modifier ${product.name}`} title="Modifier"><Pencil size={15} /></button><button type="button" onClick={() => setConfiguringProduct(product)} disabled={!hasActiveStores || !product.is_active} aria-label={`Configurer ${product.name} par boutique`} title="Configurer par boutique"><SlidersHorizontal size={15} /></button></div></td>}</tr>
+              })}</tbody></table></div>}
+            </article>
+
             <article className="panel stock-panel" id="stock">
               <div className="panel-heading"><div><h2>Inventaire actuel</h2><p>Soldes et seuils par boutique</p></div><span className="panel-count">{filteredBalances.length}</span></div>
               {filteredBalances.length === 0 ? <EmptyState>Aucun solde de stock ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Produit</th><th>Boutique</th><th>Stock</th><th>Seuil</th><th>État</th></tr></thead><tbody>{filteredBalances.map((balance) => {
@@ -344,6 +479,10 @@ function App() {
       {movementOpen && <MovementDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} defaultStoreId={actionDefaultStore} onClose={() => setMovementOpen(false)} onSubmit={handleMovement} />}
       {saleOpen && <SaleDialog stores={dashboard.stores} products={dashboard.products} configurations={dashboard.configurations} balances={dashboard.balances} defaultStoreId={actionDefaultStore} onClose={() => setSaleOpen(false)} onSubmit={handleSale} />}
       {storeEditor !== undefined && <StoreDialog store={storeEditor} onClose={() => setStoreEditor(undefined)} onSubmit={handleStore} />}
+      {ownerEditor !== undefined && <OwnerDialog owner={ownerEditor} stores={dashboard.stores} onClose={() => setOwnerEditor(undefined)} onSubmit={handleOwner} />}
+      {categoryEditorOpen && <CategoryDialog categories={dashboard.categories} onClose={() => setCategoryEditorOpen(false)} onCreate={handleCreateCategory} onUpdate={handleUpdateCategory} />}
+      {productEditor !== undefined && <ProductDialog product={productEditor} categories={dashboard.categories} onClose={() => setProductEditor(undefined)} onSubmit={handleProduct} />}
+      {configuringProduct && <ProductConfigurationDialog product={configuringProduct} stores={dashboard.stores} configurations={dashboard.configurations.filter((configuration) => configuration.product_id === configuringProduct.id)} defaultStoreId={actionDefaultStore} onClose={() => setConfiguringProduct(null)} onSubmit={handleProductConfiguration} />}
     </div>
   )
 }

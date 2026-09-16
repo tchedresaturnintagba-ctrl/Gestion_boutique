@@ -1,0 +1,78 @@
+services:
+  - type: web
+    name: gestion-boutiques-api
+    runtime: docker
+    plan: 0.5c-512mb
+    region: frankfurt
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    preDeployCommand: python -m alembic upgrade head
+    healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/api/**
+        - render.yaml
+    envVars:
+      - key: GB_ENVIRONMENT
+        value: production
+      - key: GB_DATABASE_URL
+        fromDatabase:
+          name: gestion-boutiques-db
+          property: connectionString
+      - key: GB_JWT_SECRET_KEY
+        generateValue: true
+      - key: GB_CORS_ORIGIN
+        fromService:
+          name: gestion-boutiques-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: gestion-boutiques-web
+    runtime: static
+    buildCommand: cd apps/web && npm ci && npm run build
+    staticPublishPath: ./apps/web/dist
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/web/**
+        - render.yaml
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: gestion-boutiques-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: gestion-boutiques-db
+    databaseName: gestion_boutiques
+    user: gestion_boutiques
+    plan: 0.5c-1g
+    region: frankfurt
+    postgresMajorVersion: "18"
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
+    ipAllowList: []

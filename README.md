@@ -22,7 +22,7 @@ Le socle initial comprend :
 - les règles métier de vente testées: saisie réservée au gestionnaire, fusion des lignes et refus sans écriture partielle;
 - un environnement Python local associé au workspace VS Code.
 
-Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent créer, modifier, suspendre et réactiver les boutiques, puis enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
+Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent administrer les boutiques et les propriétaires, rattacher leurs accès, réinitialiser leurs mots de passe, puis enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
 
 ## Structure
 
@@ -87,6 +87,12 @@ Set-Location apps/api
 ```
 
 L'API est accessible sur `http://localhost:8000`; sa documentation OpenAPI est disponible sur `http://localhost:8000/docs` en développement.
+
+## Déploiement
+
+Le fichier `render.yaml` provisionne le dashboard, l'API et PostgreSQL 18 sur Render. Les migrations sont appliquées avant chaque déploiement et les URLs publiques sont échangées automatiquement entre les services.
+
+La procédure complète, la création du premier gestionnaire et les contrôles après mise en ligne sont décrits dans [docs/deployment-render.md](docs/deployment-render.md).
 
 Endpoints disponibles :
 
