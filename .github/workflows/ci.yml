@@ -21,12 +21,12 @@ jobs:
         image: postgres:18-alpine
         env:
           POSTGRES_DB: gestion_boutiques_test
-          POSTGRES_USER: gestion_boutiques
-          POSTGRES_PASSWORD: test-password
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres-test-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U gestion_boutiques -d gestion_boutiques_test"
+          --health-cmd "pg_isready -U postgres -d gestion_boutiques_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -41,6 +41,13 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: apps/api/pyproject.toml
+      - name: Create limited application role
+        env:
+          PGPASSWORD: postgres-test-password
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE gestion_boutiques LOGIN PASSWORD 'test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;" \
+            -c "ALTER DATABASE gestion_boutiques_test OWNER TO gestion_boutiques;"
       - name: Install API dependencies
         run: python -m pip install -e "./apps/api[dev]"
       - name: Apply database migrations
