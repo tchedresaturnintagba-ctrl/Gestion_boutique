@@ -20,6 +20,7 @@ Le socle initial comprend :
 - des écritures de stock sérialisées qui refusent atomiquement tout solde négatif;
 - des ventes multi-produits atomiques avec prix figés, chiffre d'affaires et mouvements de stock liés;
 - les règles métier de vente testées: saisie réservée au gestionnaire, fusion des lignes et refus sans écriture partielle;
+- une application mobile Flutter pour les propriétaires (synthèse, stock, alertes, ventes en lecture seule);
 - un environnement Python local associé au workspace VS Code.
 
 Le dashboard authentifie les gestionnaires et propriétaires, restaure leur session, charge les boutiques accessibles et consolide en temps réel le catalogue, les ventes, les soldes, les mouvements et les alertes. Les gestionnaires peuvent administrer les boutiques et les propriétaires, rattacher leurs accès, réinitialiser leurs mots de passe, puis enregistrer une vente multi-produit ou un mouvement de stock depuis l'interface.
@@ -29,12 +30,13 @@ Le dashboard authentifie les gestionnaires et propriétaires, restaure leur sess
 ```text
 apps/
   api/       API FastAPI et règles métier
+  mobile/    Application Flutter des propriétaires
   web/       Dashboard React du gestionnaire
 docs/
   decisions/ Décisions fonctionnelles et techniques validées
 ```
 
-L'application Flutter propriétaire sera ajoutée après stabilisation des contrats de l'API et du parcours web principal.
+L'application Flutter propriétaire (`apps/mobile`) consomme la même API et propose aux propriétaires un accès en lecture à leurs boutiques, au stock, aux alertes et aux ventes. Voir [apps/mobile/README.md](apps/mobile/README.md) pour le lancement local.
 
 ## Prérequis
 

@@ -47,6 +47,16 @@ export interface Owner {
   updated_at: string
 }
 
+export interface AuditEvent {
+  id: string
+  actor_user_id: string | null
+  action: string
+  entity_type: string
+  entity_id: string
+  details: Record<string, unknown>
+  created_at: string
+}
+
 export interface Category {
   id: string
   organization_id: string
@@ -337,6 +347,7 @@ export const api = {
       method: 'POST',
     }),
   owners: () => allPages<Owner>('/owners'),
+  auditEvents: () => allPages<AuditEvent>('/audit-events'),
   createOwner: (input: OwnerInput) =>
     request<Owner>('/owners', {
       method: 'POST',

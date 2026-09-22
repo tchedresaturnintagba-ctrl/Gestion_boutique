@@ -19,6 +19,7 @@ import {
   Search,
   ShoppingBag,
   SlidersHorizontal,
+  ScrollText,
   Store as StoreIcon,
   Tags,
   UsersRound,
@@ -37,6 +38,7 @@ import {
   api,
   clearSession,
   hasSession,
+  type AuditEvent,
   type Category,
   type CurrentUser,
   type InventoryBalance,
@@ -57,6 +59,7 @@ import './App.css'
 interface DashboardData {
   stores: Store[]
   owners: Owner[]
+  auditEvents: AuditEvent[]
   categories: Category[]
   products: Product[]
   configurations: StoreProduct[]
@@ -67,7 +70,7 @@ interface DashboardData {
 }
 
 const emptyDashboard: DashboardData = {
-  stores: [], owners: [], categories: [], products: [], configurations: [], balances: [], movements: [], alerts: [], sales: [],
+  stores: [], owners: [], auditEvents: [], categories: [], products: [], configurations: [], balances: [], movements: [], alerts: [], sales: [],
 }
 const numberFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 })
 const moneyFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 })
@@ -75,11 +78,36 @@ const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 
 const longDateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
 const movementLabels = { entry: 'Entrée', adjustment_in: 'Ajustement +', adjustment_out: 'Ajustement −', sale: 'Vente' }
 const productUnitLabels = { piece: 'Pièce', pack: 'Paquet', kilogram: 'Kilogramme', liter: 'Litre' }
+const auditActionLabels: Record<string, string> = {
+  'store.created': 'Boutique créée',
+  'store.updated': 'Boutique modifiée',
+  'store.suspended': 'Boutique suspendue',
+  'store.activated': 'Boutique réactivée',
+  'owner.created': 'Propriétaire créé',
+  'owner.updated': 'Propriétaire modifié',
+  'owner.suspended': 'Propriétaire suspendu',
+  'owner.activated': 'Propriétaire réactivé',
+  'owner.password_reset': 'Mot de passe réinitialisé',
+  'store.owner_assigned': 'Propriétaire rattaché',
+  'store.owner_unassigned': 'Propriétaire détaché',
+}
+const auditEntityLabels: Record<string, string> = { store: 'Boutique', user: 'Utilisateur' }
+
+function formatAuditDetails(details: Record<string, unknown>): string {
+  const entries = Object.entries(details)
+  if (entries.length === 0) return 'Aucune métadonnée complémentaire'
+  return entries.map(([key, value]) => {
+    const label = key.replaceAll('_', ' ')
+    const formattedValue = Array.isArray(value) ? value.join(', ') : String(value)
+    return `${label} : ${formattedValue}`
+  }).join(' · ')
+}
 
 async function fetchDashboard(includeOwners: boolean): Promise<DashboardData> {
-  const [storesResponse, ownersResponse, categoriesResponse, productsResponse, alertsResponse, salesResponse] = await Promise.all([
+  const [storesResponse, ownersResponse, auditResponse, categoriesResponse, productsResponse, alertsResponse, salesResponse] = await Promise.all([
     api.stores(),
     includeOwners ? api.owners() : Promise.resolve(null),
+    includeOwners ? api.auditEvents() : Promise.resolve(null),
     api.categories(),
     api.products(),
     api.alerts(),
@@ -92,6 +120,7 @@ async function fetchDashboard(includeOwners: boolean): Promise<DashboardData> {
   return {
     stores: storesResponse.items,
     owners: ownersResponse?.items ?? [],
+    auditEvents: auditResponse?.items ?? [],
     categories: categoriesResponse.items,
     products: productsResponse.items,
     alerts: alertsResponse.items,
@@ -345,6 +374,17 @@ function App() {
     (selectedStoreId === 'all' || owner.store_ids.includes(selectedStoreId))
     && matchesSearch(owner.full_name, owner.email, ...owner.store_ids.map((storeId) => storeById.get(storeId)?.name))
   ))
+  const actorById = new Map([
+    [user.id, user.full_name],
+    ...dashboard.owners.map((owner) => [owner.id, owner.full_name] as const),
+  ])
+  const filteredAuditEvents = dashboard.auditEvents.filter((event) => matchesSearch(
+    auditActionLabels[event.action] ?? event.action,
+    event.entity_type,
+    event.entity_id,
+    event.actor_user_id ? actorById.get(event.actor_user_id) : undefined,
+    formatAuditDetails(event.details),
+  ))
   const filteredProducts = dashboard.products.filter((product) => matchesSearch(product.name, product.sku, product.category_id ? categoryById.get(product.category_id)?.name : undefined))
   const filteredBalances = scopedBalances.filter((balance) => matchesSearch(productById.get(balance.product_id)?.name, productById.get(balance.product_id)?.sku, storeById.get(balance.store_id)?.name))
   const filteredAlerts = scopedAlerts.filter((alert) => matchesSearch(productById.get(alert.product_id)?.name, productById.get(alert.product_id)?.sku, storeById.get(alert.store_id)?.name))
@@ -374,6 +414,7 @@ function App() {
           <a className="nav-link active" href="#dashboard"><LayoutDashboard size={19} />Vue d’ensemble</a>
           <a className="nav-link" href="#shops"><StoreIcon size={19} />Boutiques<span className="nav-count">{dashboard.stores.length}</span></a>
           {user.role === 'manager' && <a className="nav-link" href="#owners"><UsersRound size={19} />Propriétaires<span className="nav-count">{dashboard.owners.length}</span></a>}
+          {user.role === 'manager' && <a className="nav-link" href="#audit"><ScrollText size={19} />Journal d’audit<span className="nav-count">{dashboard.auditEvents.length}</span></a>}
           <a className="nav-link" href="#catalog"><Tags size={19} />Catalogue<span className="nav-count">{dashboard.products.length}</span></a>
           <a className="nav-link" href="#stock"><Package size={19} />Inventaire</a>
           <a className="nav-link" href="#sales"><ReceiptText size={19} />Ventes<span className="nav-count">{dashboard.sales.length}</span></a>
@@ -438,6 +479,11 @@ function App() {
             {user.role === 'manager' && <article className="panel owners-panel" id="owners">
               <div className="panel-heading"><div><h2>Propriétaires</h2><p>Accès aux boutiques et état des comptes</p></div><div className="panel-heading-actions"><span className="panel-count">{filteredOwners.length}</span><button className="panel-command" type="button" onClick={() => setOwnerEditor(null)}><Plus size={15} />Ajouter</button></div></div>
               {filteredOwners.length === 0 ? <EmptyState>Aucun propriétaire ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Propriétaire</th><th>Boutiques accessibles</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{filteredOwners.map((owner) => <tr key={owner.id}><td><strong>{owner.full_name}</strong><small>{owner.email}</small></td><td><strong>{owner.store_ids.length} boutique{owner.store_ids.length > 1 ? 's' : ''}</strong><small>{owner.store_ids.map((storeId) => storeById.get(storeId)?.name).filter(Boolean).join(' · ') || 'Aucun rattachement'}</small></td><td><span className={`catalog-status ${owner.is_active ? '' : 'inactive'}`}>{owner.is_active ? 'Actif' : 'Suspendu'}</span></td><td><div className="catalog-actions"><button type="button" onClick={() => setOwnerEditor(owner)} aria-label={`Modifier ${owner.full_name}`} title="Modifier"><Pencil size={15} /></button><button type="button" className={owner.is_active ? 'danger' : 'activate'} onClick={() => void handleOwnerStatus(owner)} disabled={statusOwnerId === owner.id} aria-label={`${owner.is_active ? 'Suspendre' : 'Réactiver'} ${owner.full_name}`} title={owner.is_active ? 'Suspendre' : 'Réactiver'}>{owner.is_active ? <PowerOff size={15} /> : <Power size={15} />}</button></div></td></tr>)}</tbody></table></div>}
+            </article>}
+
+            {user.role === 'manager' && <article className="panel audit-panel" id="audit">
+              <div className="panel-heading"><div><h2>Journal d’audit</h2><p>Traçabilité immuable des actions sensibles</p></div><span className="panel-count">{filteredAuditEvents.length}</span></div>
+              {filteredAuditEvents.length === 0 ? <EmptyState>Aucun événement d’audit ne correspond à cette vue.</EmptyState> : <div className="table-wrap"><table><thead><tr><th>Action</th><th>Acteur</th><th>Cible</th><th>Date</th><th>Métadonnées</th></tr></thead><tbody>{filteredAuditEvents.map((event) => <tr key={event.id}><td><span className="audit-action">{auditActionLabels[event.action] ?? event.action}</span><small>{event.action}</small></td><td><strong>{event.actor_user_id ? actorById.get(event.actor_user_id) ?? 'Utilisateur supprimé' : 'Système'}</strong><small>{event.actor_user_id?.slice(0, 8) ?? 'Automatique'}</small></td><td><strong>{auditEntityLabels[event.entity_type] ?? event.entity_type}</strong><small>#{event.entity_id.slice(0, 8).toUpperCase()}</small></td><td>{dateFormatter.format(new Date(event.created_at))}</td><td className="audit-details" title={JSON.stringify(event.details)}>{formatAuditDetails(event.details)}</td></tr>)}</tbody></table></div>}
             </article>}
 
             <article className="panel catalog-panel" id="catalog">

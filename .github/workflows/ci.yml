@@ -80,3 +80,25 @@ jobs:
       - name: Build web
         working-directory: apps/web
         run: npm run build
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.32.0"
+          cache: true
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Analyze mobile
+        working-directory: apps/mobile
+        run: flutter analyze
+      - name: Test mobile
+        working-directory: apps/mobile
+        run: flutter test
+      - name: Build mobile web
+        working-directory: apps/mobile
+        run: flutter build web

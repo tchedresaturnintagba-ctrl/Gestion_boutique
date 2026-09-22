@@ -98,7 +98,7 @@
 .alert-row div span { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
 .alert-row b { padding: 4px 7px; border-radius: 4px; color: #9a6a1e; background: #fdf1d8; font-size: 8px; }
 .alert-row.critical b { color: #b34840; background: #fae8e6; }
-.owners-panel, .catalog-panel, .stock-panel, .sales-panel, .movements-panel { grid-column: 1 / -1; }
+.owners-panel, .audit-panel, .catalog-panel, .stock-panel, .sales-panel, .movements-panel { grid-column: 1 / -1; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 th { padding: 10px 20px; color: #8b9b96; background: #fafbfb; font-size: 8px; letter-spacing: .7px; text-transform: uppercase; }
@@ -110,6 +110,8 @@ td small { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
 .stock-status.faible { color: #9a6a1e; background: #fdf1d8; }
 .stock-status.rupture, .movement-type.out { color: #b34840; background: #fae8e6; }
 .movement-type.in { color: #237b60; background: #e5f5ef; }
+.audit-action { display: inline-flex; padding: 4px 8px; border-radius: 4px; color: #39738d; background: #e7f0f5; font-size: 8px; font-weight: 750; white-space: nowrap; }
+td.audit-details { min-width: 220px; max-width: 390px; white-space: normal; line-height: 1.5; }
 .catalog-status { display: inline-flex; padding: 4px 8px; border-radius: 4px; color: #237b60; background: #e5f5ef; font-size: 8px; font-weight: 750; }
 .catalog-status.inactive { color: #687974; background: #edf1ef; }
 .catalog-actions, .category-actions { display: flex; justify-content: flex-end; gap: 3px; }
@@ -226,7 +228,7 @@ td small { margin-top: 3px; color: #9aa6a2; font-size: 8px; }
 @media (max-width: 1050px) {
   .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-grid { grid-template-columns: 1fr; }
-  .catalog-panel, .stock-panel, .sales-panel, .movements-panel { grid-column: auto; }
+  .audit-panel, .catalog-panel, .stock-panel, .sales-panel, .movements-panel { grid-column: auto; }
   .login-page { grid-template-columns: minmax(300px, .8fr) minmax(400px, 1fr); }
 }
 
