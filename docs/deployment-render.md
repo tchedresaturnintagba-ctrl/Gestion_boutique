@@ -2,8 +2,8 @@
 
 Cette procédure crée trois ressources dans la région de Francfort :
 
-- `gestion-boutiques-web`, site statique servi par le CDN Render ;
-- `gestion-boutiques-api`, service Docker FastAPI ;
+- `kermanager`, site statique servi par le CDN Render ;
+- `kermanager-api`, service Docker FastAPI ;
 - `gestion-boutiques-db`, instance PostgreSQL 18 privée.
 
 Le Blueprint utilise une base et une API payantes minimales. Render affiche le coût avant la création. Les offres gratuites ne conviennent pas à une production durable, notamment pour les sauvegardes et la disponibilité.
@@ -45,7 +45,7 @@ La base n'accepte aucune connexion depuis Internet (`ipAllowList: []`). L'admini
 
 ## 3. Créer le premier gestionnaire
 
-Après le premier déploiement réussi, ouvrir le service `gestion-boutiques-api`, puis son onglet **Shell**. Exécuter :
+Après le premier déploiement réussi, ouvrir le service `kermanager-api`, puis son onglet **Shell**. Exécuter :
 
 ```sh
 python -m gestion_boutiques.bootstrap \
@@ -62,8 +62,8 @@ Saisir un mot de passe unique d'au moins 12 caractères dans le terminal. Il n'e
 Depuis PowerShell, remplacer les deux URLs par celles affichées par Render :
 
 ```powershell
-$apiUrl = "https://gestion-boutiques-api.onrender.com"
-$webUrl = "https://gestion-boutiques-web.onrender.com"
+$apiUrl = "https://kermanager-api.onrender.com"
+$webUrl = "https://kermanager.onrender.com"
 
 Invoke-RestMethod "$apiUrl/health"
 Invoke-RestMethod "$apiUrl/health/ready"

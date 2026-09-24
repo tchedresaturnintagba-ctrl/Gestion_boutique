@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: gestion-boutiques-api
+    name: kermanager-api
     runtime: docker
     plan: 0.5c-512mb
     region: frankfurt
@@ -25,12 +25,12 @@ services:
         generateValue: true
       - key: GB_CORS_ORIGIN
         fromService:
-          name: gestion-boutiques-web
+          name: kermanager
           type: web
           envVarKey: RENDER_EXTERNAL_URL
 
   - type: web
-    name: gestion-boutiques-web
+    name: kermanager
     runtime: static
     buildCommand: cd apps/web && npm ci && npm run build
     staticPublishPath: ./apps/web/dist
@@ -42,7 +42,7 @@ services:
     envVars:
       - key: VITE_API_URL
         fromService:
-          name: gestion-boutiques-api
+          name: kermanager-api
           type: web
           envVarKey: RENDER_EXTERNAL_URL
     headers:
