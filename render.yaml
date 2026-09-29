@@ -28,6 +28,11 @@ services:
           name: kermanager
           type: web
           envVarKey: RENDER_EXTERNAL_URL
+      - key: GB_CORS_EXTRA_ORIGIN
+        fromService:
+          name: kermanager-mobile
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
 
   - type: web
     name: kermanager
@@ -61,6 +66,41 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: kermanager-mobile
+    runtime: static
+    buildCommand: >-
+      git clone --depth 1 --branch 3.32.0 https://github.com/flutter/flutter.git "$HOME/flutter"
+      && cd apps/mobile
+      && "$HOME/flutter/bin/flutter" config --no-analytics
+      && "$HOME/flutter/bin/flutter" build web --release --dart-define=API_URL=$API_URL
+    staticPublishPath: ./apps/mobile/build/web
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/mobile/**
+        - render.yaml
+    envVars:
+      - key: API_URL
+        fromService:
+          name: kermanager-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
     routes:
       - type: rewrite
         source: /*

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
     cors_origin: str | None = None
+    cors_extra_origin: str | None = None
     database_url: str = "postgresql+asyncpg://gestion_boutiques:change-me@127.0.0.1:5432/gestion_boutiques"
     jwt_secret_key: SecretStr = SecretStr("change-this-development-secret")
     access_token_minutes: int = 15
@@ -38,14 +39,19 @@ class Settings(BaseSettings):
             return value.replace("postgresql://", "postgresql+asyncpg://", 1)
         return value
 
-    @field_validator("cors_origin")
+    @field_validator("cors_origin", "cors_extra_origin")
     @classmethod
     def normalize_cors_origin(cls, value: str | None) -> str | None:
         return value.rstrip("/") if value else None
 
     @property
     def allowed_cors_origins(self) -> list[str]:
-        return [self.cors_origin] if self.cors_origin else self.cors_origins
+        if not self.cors_origin:
+            return self.cors_origins
+        origins = [self.cors_origin]
+        if self.cors_extra_origin:
+            origins.append(self.cors_extra_origin)
+        return origins
 
     @model_validator(mode="after")
     def reject_development_secrets_in_production(self) -> "Settings":
