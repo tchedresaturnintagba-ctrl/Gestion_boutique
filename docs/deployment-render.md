@@ -1,8 +1,9 @@
 # Déploiement sur Render
 
-Cette procédure crée trois ressources dans la région de Francfort :
+Cette procédure crée quatre ressources dans la région de Francfort :
 
 - `kermanager`, site statique servi par le CDN Render ;
+- `kermanager-mobile`, application Flutter compilée en web et servie en site statique ;
 - `kermanager-api`, service Docker FastAPI ;
 - `gestion-boutiques-db`, instance PostgreSQL 18 privée.
 

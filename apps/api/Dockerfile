@@ -19,4 +19,4 @@ USER app
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "exec python -m uvicorn gestion_boutiques.main:app --app-dir src --host 0.0.0.0 --port ${PORT:-10000} --workers ${WEB_CONCURRENCY:-1}"]
+CMD ["sh", "-c", "if [ \"$GB_RUN_MIGRATIONS\" = \"1\" ]; then python -m alembic upgrade head || exit 1; fi; exec python -m uvicorn gestion_boutiques.main:app --app-dir src --host 0.0.0.0 --port ${PORT:-10000} --workers ${WEB_CONCURRENCY:-1}"]

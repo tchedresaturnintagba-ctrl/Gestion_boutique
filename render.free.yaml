@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: kermanager-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/api/**
+        - render.free.yaml
+    envVars:
+      - key: GB_ENVIRONMENT
+        value: production
+      - key: GB_RUN_MIGRATIONS
+        value: "1"
+      - key: GB_DATABASE_URL
+        sync: false
+      - key: GB_JWT_SECRET_KEY
+        generateValue: true
+      - key: GB_CORS_ORIGIN
+        value: https://kermanager.pages.dev
+      - key: GB_CORS_EXTRA_ORIGIN
+        value: https://kermanager-mobile.pages.dev
